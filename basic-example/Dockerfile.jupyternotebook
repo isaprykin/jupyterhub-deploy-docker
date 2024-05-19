@@ -1,0 +1,38 @@
+FROM quay.io/jupyter/base-notebook:latest
+# Replace `latest` with an image tag from to ensure reproducible builds:
+# https://hub.docker.com/r/jupyter/minimal-notebook/tags/
+# Inspect the Dockerfile at:
+# https://github.com/jupyter/docker-stacks/tree/HEAD/minimal-notebook/Dockerfile
+
+# install additional package...
+# RUN pip install --no-cache-dir astropy
+
+# RUN mkdir -p -m 0700 ~/.ssh
+
+USER root
+
+RUN apt-get -yq update
+RUN apt-get -yqq install git openssh-client
+
+USER jovyan
+
+RUN mkdir -p /home/$NB_USER/private && fix-permissions /home/${NB_USER}/private && ln -s /home/$NB_USER/private /home/$NB_USER/work/private
+
+RUN mkdir -p /home/$NB_USER/data && fix-permissions /home/${NB_USER}/data && ln -s /home/$NB_USER/data /home/$NB_USER/work/data
+
+RUN mkdir -p -m 0700 /home/jovyan/.ssh && ssh-keyscan bitbucket.org >> /home/jovyan/.ssh/known_hosts
+RUN --mount=type=ssh,uid=$NB_UID ssh -T git@bitbucket.org 2>&1
+
+# TODO: fill in the repo. rename repo to the actual name.
+RUN --mount=type=ssh,uid=$NB_UID git clone git@bitbucket.org:example/example.git /home/jovyan/private/repo
+
+WORKDIR /home/jovyan/private/repo
+RUN pip install -e .  # install the repo code
+
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES all
+# ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+# set the default command of the image,
+# if you want to launch more complex startup than the default `juptyerhub-singleuser`.
+# To launch an image's custom CMD instead of the default `jupyterhub-singleuser`
+# set `singleuser.cmd: null` in your config.yaml.

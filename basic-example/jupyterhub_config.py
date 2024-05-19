@@ -3,6 +3,7 @@
 
 # Configuration file for JupyterHub
 import os
+import docker
 
 c = get_config()  # noqa: F821
 
@@ -21,6 +22,7 @@ network_name = os.environ["DOCKER_NETWORK_NAME"]
 c.DockerSpawner.use_internal_ip = True
 c.DockerSpawner.network_name = network_name
 
+
 # Explicitly set notebook directory because we'll be mounting a volume to it.
 # Most `jupyter/docker-stacks` *-notebook images run the Notebook server as
 # user `jovyan`, and set the notebook directory to `/home/jovyan/work`.
@@ -30,10 +32,32 @@ c.DockerSpawner.notebook_dir = notebook_dir
 
 # Mount the real user's Docker volume on the host to the notebook user's
 # notebook directory in the container
-c.DockerSpawner.volumes = {"jupyterhub-user-{username}": notebook_dir}
+c.DockerSpawner.volumes = {
+    "jupyterhub-shared": notebook_dir,
+    "jupyterhub-user-{username}": "/home/jovyan/private",
+    "/home/igor/projects/data/": "/home/jovyan/data",
+}
 
 # Remove containers once they are stopped
 c.DockerSpawner.remove = True
+
+c.DockerSpawner.extra_create_kwargs = {
+    'user': 'root',
+}
+
+c.DockerSpawner.extra_host_config = {
+    'runtime': 'nvidia',
+    "device_requests": [
+        docker.types.DeviceRequest(
+            count=-1,
+            capabilities=[["gpu"]],
+        ),
+    ],    
+}
+
+c.DockerSpawner.environment = {
+    'GRANT_SUDO': 'yes',
+}
 
 # For debugging arguments passed to spawned containers
 c.DockerSpawner.debug = True
@@ -51,6 +75,9 @@ c.JupyterHub.authenticator_class = "nativeauthenticator.NativeAuthenticator"
 
 # Allow anyone to sign-up without approval
 c.NativeAuthenticator.open_signup = True
+
+# Help it serve on the subpath
+c.JupyterHub.base_url = '/jupyter/'
 
 # Allowed admins
 admin = os.environ.get("JUPYTERHUB_ADMIN")
